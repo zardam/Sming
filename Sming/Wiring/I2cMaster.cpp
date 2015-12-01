@@ -37,11 +37,9 @@
  */
 SoftI2cMaster::SoftI2cMaster(uint8_t sdaPin, uint8_t sclPin) {
   sdaPin_ = sdaPin;
-  pinMode(sdaPin_, OUTPUT);
-  digitalWrite(sdaPin_, HIGH);
+  pinMode(sdaPin_, INPUT);
   sclPin_ = sclPin;
-  pinMode(sclPin_, OUTPUT);
-  digitalWrite(sclPin_, HIGH);
+  pinMode(sclPin_, INPUT);
 }
 //------------------------------------------------------------------------------
 /** Read a byte and send Ack if more reads follow else Nak to terminate read.
@@ -52,25 +50,24 @@ SoftI2cMaster::SoftI2cMaster(uint8_t sdaPin, uint8_t sclPin) {
  */
 uint8_t SoftI2cMaster::read(uint8_t last) {
   uint8_t b = 0;
-  // make sure pull-up enabled
-  digitalWrite(sdaPin_, HIGH);
-  pinMode(sdaPin_, INPUT);
   // read byte
   for (uint8_t i = 0; i < 8; i++) {
-    // don't change this loop unless you verify the change with a scope
     b <<= 1;
+    // don't change this loop unless you verify the change with a scope
+    pinMode(sclPin_, OUTPUT);
+    pinMode(sdaPin_, INPUT);
     delayMicroseconds(I2C_DELAY_USEC);
-    digitalWrite(sclPin_, HIGH);
+    pinMode(sclPin_, INPUT);
+    delayMicroseconds(I2C_DELAY_USEC);
     if (digitalRead(sdaPin_)) b |= 1;
-    digitalWrite(sclPin_, LOW);
   }
   // send Ack or Nak
-  pinMode(sdaPin_, OUTPUT);
-  digitalWrite(sdaPin_, last);
-  digitalWrite(sclPin_, HIGH);
+  pinMode(sclPin_, OUTPUT);
+  if(last) pinMode(sdaPin_, INPUT); else pinMode(sdaPin_, OUTPUT);
   delayMicroseconds(I2C_DELAY_USEC);
-  digitalWrite(sclPin_, LOW);
-  digitalWrite(sdaPin_, LOW);
+  pinMode(sclPin_, INPUT);
+  delayMicroseconds(I2C_DELAY_USEC);
+  pinMode(sclPin_, OUTPUT);
   return b;
 }
 //------------------------------------------------------------------------------
@@ -81,9 +78,6 @@ uint8_t SoftI2cMaster::read(uint8_t last) {
  * \return The value true, 1, for success or false, 0, for failure.
  */
 bool SoftI2cMaster::restart(uint8_t addressRW) {
-  digitalWrite(sdaPin_, HIGH);
-  digitalWrite(sclPin_, HIGH);
-  delayMicroseconds(I2C_DELAY_USEC);
   return start(addressRW);
 }
 //------------------------------------------------------------------------------
@@ -94,22 +88,23 @@ bool SoftI2cMaster::restart(uint8_t addressRW) {
  * \return The value true, 1, for success or false, 0, for failure.
  */
 bool SoftI2cMaster::start(uint8_t addressRW) {
-  digitalWrite(sdaPin_, HIGH);
-  digitalWrite(sclPin_, HIGH);
+  pinMode(sdaPin_, INPUT);
+  pinMode(sclPin_, INPUT);
   delayMicroseconds(I2C_DELAY_USEC);
-  digitalWrite(sdaPin_, LOW);
+  pinMode(sdaPin_, OUTPUT);
   delayMicroseconds(I2C_DELAY_USEC);
-  digitalWrite(sclPin_, LOW);
+  pinMode(sclPin_, OUTPUT);
   return write(addressRW);
 }
 //------------------------------------------------------------------------------
   /**  Issue a stop condition. */
 void SoftI2cMaster::stop(void) {
-  digitalWrite(sdaPin_, LOW);
+  pinMode(sclPin_, OUTPUT);
+  pinMode(sdaPin_, OUTPUT);
   delayMicroseconds(I2C_DELAY_USEC);
-  digitalWrite(sclPin_, HIGH);
+  pinMode(sclPin_, INPUT);
   delayMicroseconds(I2C_DELAY_USEC);
-  digitalWrite(sdaPin_, HIGH);
+  pinMode(sdaPin_, INPUT);
   delayMicroseconds(I2C_DELAY_USEC);
 }
 //------------------------------------------------------------------------------
@@ -124,19 +119,19 @@ bool SoftI2cMaster::write(uint8_t data) {
   // write byte
   for (uint8_t m = 0X80; m != 0; m >>= 1) {
     // don't change this loop unless you verify the change with a scope
-    digitalWrite(sdaPin_, m & data);
-    digitalWrite(sclPin_, HIGH);
+    pinMode(sclPin_, OUTPUT);
+    if(m & data) pinMode(sdaPin_, INPUT); else pinMode(sdaPin_, OUTPUT);
     delayMicroseconds(I2C_DELAY_USEC);
-    digitalWrite(sclPin_, LOW);
+    pinMode(sclPin_, INPUT);
+    delayMicroseconds(I2C_DELAY_USEC);
   }
   // get Ack or Nak
+  pinMode(sclPin_, OUTPUT);
   pinMode(sdaPin_, INPUT);
-  // enable pullup
-  digitalWrite(sdaPin_, HIGH);
-  digitalWrite(sclPin_, HIGH);
-  uint8_t rtn = digitalRead(sdaPin_);
-  digitalWrite(sclPin_, LOW);
-  pinMode(sdaPin_, OUTPUT);
-  digitalWrite(sdaPin_, LOW);
-  return rtn == 0;
+  delayMicroseconds(I2C_DELAY_USEC);
+  pinMode(sclPin_, INPUT);
+  delayMicroseconds(I2C_DELAY_USEC);
+  int ret = digitalRead(sdaPin_);
+  pinMode(sclPin_, OUTPUT);
+  return 0 == ret;
 }
